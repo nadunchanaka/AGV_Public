@@ -1,0 +1,113 @@
+<?xml version="1.0"?>
+
+<launch>
+
+      <!-- Transformation Configuration ... Setting Up the Relationships Between Coordinate Frames --> 
+  <!-- <node pkg="tf" type="static_transform_publisher" name="base_link_to_laser" args="1.28 0 0.6 0 0 0 chassis laser 30" /> -->
+  <node pkg="tf" type="static_transform_publisher" name="base_link_to_laser" args="0.25 0 0.17 0 0 0 base_link laser 30" />
+  <node pkg="tf" type="static_transform_publisher" name="imu_broadcaster" args="-0.16 0 0.045 0 0 0 base_link imu_link 30" />
+  <node pkg="tf" type="static_transform_publisher" name="base_link_broadcaster" args="0 0 0.07 0 0 0 base_footprint base_link 30" />
+  <!-- <node pkg="tf" type="static_transform_publisher" name="base_link_broadcaster" args="0 0 0.07 0 0 0 test_odom_link base_link 30" /> -->
+  <node pkg="tf" type="static_transform_publisher" name="stearing_link_broadcaster" args="-1.28 0 0 0 0 0 stearing_link chassis 30" />
+  <node pkg="tf" type="static_transform_publisher" name="chassis_footprint_broadcaster" args="0 0 -0.12 0 0 0 chassis chassis_footprint 30" />
+  <!-- odom to base_footprint transform will be provided by the robot_pose_ekf node -->
+  <!-- map to odom will be provided by the AMCL -->
+  <!-- <node pkg="tf" type="static_transform_publisher" name="map_to_odom" args="0 0 0 0 0 0 map odom 30" /> -->
+
+  <!-- Run mpu_6050_driver package (IMU Sensor) -->
+  <include file="$(find mpu_6050_driver)/launch/imu_demo.launch"/>
+
+  <!-- differential drive model  -->
+  <!-- <include file="$(find drive_wheel)/launch/test.launch"/> -->
+
+  <!-- Inula model -->
+  <include file="$(find kin_model)/launch/kinematic.launch"/>
+
+  <include file="$(find stear_pot_data)/launch/stearPot.launch"/>
+
+  <node pkg="localization" type="ekf_odom_pub" name="ekf_odom_pub">
+  </node> 
+
+  <node pkg="localization" type="rviz_click_to_2d" name="rviz_click_to_2d">
+  </node>  
+
+  <!-- Map File -->
+  <arg name="map_file" default="$(find navi_launch)/maps/map7.yaml"/>
+
+  <node pkg="map_server" name="map_server" type="map_server" args="$(arg map_file)" />
+
+  <include file="$(find rplidar_ros)/launch/rplidar.launch"/>
+
+  
+
+  <!-- Extended Kalman Filter from robot_pose_ekf Node-->
+  <remap from="odom" to="odom_data_quat" />
+  <remap from="imu_data" to="imu/data_pose" />
+  <node pkg="robot_pose_ekf" type="robot_pose_ekf" name="robot_pose_ekf">
+      <param name="output_frame" value="odom"/>
+      <param name="base_footprint_frame" value="base_footprint"/>
+      <param name="freq" value="30.0"/>
+      <param name="sensor_timeout" value="1.0"/>
+      <param name="odom_used" value="true"/>
+      <param name="imu_used" value="true"/>
+      <param name="vo_used" value="false"/>
+      <param name="gps_used" value="false"/>
+      <param name="debug" value="false"/>
+      <param name="self_diagnose" value="false"/>
+  </node>
+
+  <node pkg="amcl" type="amcl" name="amcl">
+    <param name="use_map_topic"             value="$(arg map_file)"/>
+    <!-- Publish scans from best pose at a max of 10 Hz -->
+
+    <param name="save_pose_rate"            value="30.0"/> 
+    <param name="odom_model_type"           value="diff"/>
+    <param name="odom_alpha5"               value="0.1"/>
+    <param name="gui_publish_rate"          value="5"/>
+    <param name="laser_max_beams"             value="60"/>
+    <param name="laser_max_range"           value="12.0"/>
+    <param name="min_particles"             value="500"/>
+    <param name="max_particles"             value="5000"/>
+    <param name="kld_err"                   value="0.05"/>   <!--  0.05 -->
+    <param name="kld_z"                     value="0.99"/>
+    <param name="odom_alpha1"               value="0.2"/>
+    <param name="odom_alpha2"               value="0.2"/>
+    <!-- translation std dev, m -->
+    <param name="odom_alpha3"               value="0.2"/>
+    <param name="odom_alpha4"               value="0.2"/>
+    <param name="laser_z_hit"               value="0.5"/>
+    <param name="laser_z_short"             value="0.05"/>
+    <param name="laser_z_max"               value="0.05"/>
+    <param name="laser_z_rand"              value="0.5"/>
+    <param name="laser_sigma_hit"           value="0.2"/>
+    <param name="laser_lambda_short"        value="0.1"/>
+    <param name="laser_model_type"          value="likelihood_field"/>
+    <!-- <param name="laser_model_type" value="beam"/> -->
+    <param name="laser_likelihood_max_dist" value="2.0"/>
+    <param name="update_min_d"              value="-1"/> <!--  0.25 -->
+    <param name="update_min_a"              value="-1"/> <!--  0.2 -->
+    <param name="odom_frame_id"             value="odom"/> 
+    <param name="base_frame_id"             value="base_footprint"/> 
+    <param name="global_frame_id"           value="map"/>
+    <param name="resample_interval"         value="1"/>
+    <!-- Increase tolerance because the computer can get quite busy -->
+    <param name="transform_tolerance"       value="0.3"/>
+    <param name="recovery_alpha_slow"       value="0.0"/>
+    <param name="recovery_alpha_fast"       value="0.0"/>
+    <param name="initial_pose_x"            value="0.0"/>
+    <param name="initial_pose_y"            value="0.0"/>
+    <param name="initial_pose_a"            value="0.0"/>
+  </node>
+
+
+   <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+   
+    <rosparam file="$(find navi_launch)/param/costmap_common_params.yaml" command="load" ns="global_costmap" /> 
+    <rosparam file="$(find navi_launch)/param/costmap_common_params.yaml" command="load" ns="local_costmap" />
+    <rosparam file="$(find navi_launch)/param/local_costmap_params.yaml" command="load" ns="local_costmap" />
+    <rosparam file="$(find navi_launch)/param/global_costmap_params.yaml" command="load" ns="global_costmap" /> 
+    <rosparam file="$(find navi_launch)/param/base_local_planner_params.yaml" command="load" />
+    <rosparam file="$(find navi_launch)/param/move_base_params.yaml" command="load" />
+ </node>
+    
+</launch>

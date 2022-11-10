@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+
+<launch>
+
+      <!-- Transformation Configuration ... Setting Up the Relationships Between Coordinate Frames --> 
+  <node pkg="tf" type="static_transform_publisher" name="base_link_to_laser" args="0.225 0 0.3 0 0 0 base_link laser 30" />
+  <node pkg="tf" type="static_transform_publisher" name="imu_broadcaster" args="0 0.03 0 0 0 0 base_link imu_link 30" />
+  <node pkg="tf" type="static_transform_publisher" name="base_link_broadcaster" args="0 0 0.21 0 0 0 base_footprint base_link 30" />
+  <!-- <node pkg="tf" type="static_transform_publisher" name="map_to_odom" args="0 0 0 0 0 0 map odom 30" /> -->
+
+<!-- Motor Driver Communication Node -->
+  <include file="$(find drive_wheel)/launch/test.launch"/>
+
+<!-- Odometry Calculation -->
+  <node pkg="differential_drive" name="diff_tf" type="diff_tf.py"/>
+
+  <!-- Run mpu_6050_driver package (IMU Sensor) -->
+  <include file="$(find mpu_6050_driver)/launch/imu_demo.launch"/>
+
+   <!-- IMU Arduino Node -->
+<!-- <include file="$(find mpu6050_imu_driver)/launch/mpu6050_imu.launch"/> -->
+
+  <!-- Map File -->
+  <arg name="map_file" default="$(find navi_launch)/maps/map10.yaml"/>
+  <node pkg="map_server" name="map_server" type="map_server" args="$(arg map_file)" />
+
+<!-- Lidar -->
+  <include file="$(find rplidar_ros)/launch/rplidar.launch"/>
+
+<!-- Robot Localization Node -->
+  <!-- <node pkg="robot_localization" type="ekf_localization_node" name="robot_localization"  clear_params="true">
+    <rosparam command="load" file="$(find navi_launch)/param/ekf2.yaml" />
+    <remap from="odometry/filtered" to="odom" />
+  </node> -->
+
+ <!-- Robot Localization Node -->
+  <include file="$(find navi_launch)/launch/localization_imun_edit.launch"/> 
+  
+
+
+  <!-- amcl -->
+<include file="$(find navi_launch)/launch/amcl.launch"/>
+
+<!-- move_base -->
+<include file="$(find navi_launch)/launch/move_base.launch"/> 
+
+  </launch>
